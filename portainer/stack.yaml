@@ -1,0 +1,76 @@
+version: "3.3"
+
+services:
+  traefik:
+    image: "traefik:latest"
+    command:
+      # We want the dashboard of traefik active
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --providers.docker
+      # Change this if you want more logs (DEBUG level could be too much)
+      - --log.level=ERROR
+      - --certificatesresolvers.leresolver.acme.tlschallenge=true
+      - --certificatesresolvers.leresolver.acme.httpchallenge=true
+      - --certificatesresolvers.leresolver.acme.email=your_email@here.com
+      # To save the certs is hight recommended to use a volume as you can see it bellow
+      - --certificatesresolvers.leresolver.acme.storage=./acme.json
+      - --certificatesresolvers.leresolver.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      # In the same folder you have this file
+      # mkdir traefik && touch traefik/acme.json && chmod 400 traefik/acme.json
+      - "./traefik/acme.json:/acme.json"
+    labels:
+      - "traefik.enable=true"
+      # Redirect all traffic from http to https
+      - "traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+      # Middleware
+      # admin-auth middleware with HTTP Basic auth
+      # Using the environment variables USERNAME and HASHED_PASSWORD
+      # Sample echo $(htpasswd -nB user) | sed -e s/\\$/\\$\\$/g
+      # In this case the password is password: Don't use this in production 😁
+      - "traefik.http.middlewares.admin-auth.basicauth.user:$$2y$$05$$0et0ONr1P6o3Fh2f/6h6G.sRNu740FOSTg.zXwA87Gq/VSvTOj2oW"
+
+      # Dashboard
+      # Remember to point to the Docker Swarm IP server
+      - "traefik.http.routers.traefik-public.rule=Host(`traefik.yourdomain.com`)"
+      - "traefik.http.routers.traefik-public.entrypoints=websecure"
+      - "traefik.http.routers.traefik-public.middlewares=admin-auth"
+      - "traefik.http.services.traefik-public.loadbalancer.server.port=8080"
+      - "traefik.http.routers.traefik-public.service=api@internal"
+      - "traefik.http.routers.traefik-public.tls.certresolver=leresolver"
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    command: -H unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+    labels:
+      - "traefik.enable=true"
+      # Frontend
+      # Remember to point to the Docker Swarm IP server
+      - "traefik.http.routers.frontend.rule=Host(`portainer.yourdomain.com`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.services.frontend.loadbalancer.server.port=9000"
+      - "traefik.http.routers.frontend.service=frontend"
+      - "traefik.http.routers.frontend.tls.certresolver=leresolver"
+
+volumes:
+  portainer_data:
