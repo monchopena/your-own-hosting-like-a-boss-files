@@ -40,7 +40,7 @@ services:
       # Using the environment variables USERNAME and HASHED_PASSWORD
       # Sample echo $(htpasswd -nB user) | sed -e s/\\$/\\$\\$/g
       # In this case the password is password: Don't use this in production 😁
-      - "traefik.http.middlewares.admin-auth.basicauth.users:$$2y$$05$$0et0ONr1P6o3Fh2f/6h6G.sRNu740FOSTg.zXwA87Gq/VSvTOj2oW"
+      - "traefik.http.middlewares.admin-auth.basicauth.users=user:$$2y$$05$$0et0ONr1P6o3Fh2f/6h6G.sRNu740FOSTg.zXwA87Gq/VSvTOj2oW"
 
       # Dashboard
       # Remember to point to the Docker Swarm IP server
