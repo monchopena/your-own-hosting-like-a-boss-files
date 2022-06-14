@@ -46,3 +46,8 @@ Thumbs.db
 # General
 log/
 *.log
+
+# Wordpress directories
+wordpress/mariadb_data
+wordpress/minio_data
+wordpress/wordpress_data
