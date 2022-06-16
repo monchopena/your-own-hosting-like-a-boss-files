@@ -1,0 +1,73 @@
+version: '3'
+
+volumes:
+  db_data:
+  wordpress_data:
+  minio_data:
+
+networks:
+  wordpress_network:
+  portainer_default:
+    external: true
+
+services:
+  mariadb:
+    image: docker.io/bitnami/mariadb:10.6
+    networks:
+      - wordpress_network
+    volumes:
+      - 'db_data:/bitnami/mariadb'
+    environment:
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      - ALLOW_EMPTY_PASSWORD=yes
+      - MARIADB_USER=bn_wordpress
+      - MARIADB_DATABASE=bitnami_wordpress
+  wordpress:
+    image: docker.io/bitnami/wordpress:6
+    networks:
+      - wordpress_network
+      - portainer_default
+    volumes:
+      - 'wordpress_data:/bitnami/wordpress'
+    depends_on:
+      - mariadb
+    environment:
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      - ALLOW_EMPTY_PASSWORD=yes
+      - WORDPRESS_DATABASE_HOST=mariadb
+      - WORDPRESS_DATABASE_PORT_NUMBER=3306
+      - WORDPRESS_DATABASE_USER=bn_wordpress
+      - WORDPRESS_DATABASE_NAME=bitnami_wordpress
+    labels:
+      - "traefik.enable=true"
+      # Frontend
+      # Take care of the domain
+      - "traefik.docker.network=portainer_default"
+      - "traefik.http.routers.wordpress.rule=Host(`wordpress.local`)"
+      - "traefik.http.routers.wordpress.entrypoints=web"
+      - "traefik.http.services.wordpress.loadbalancer.server.port=8080"
+      - "traefik.http.routers.wordpress.service=wordpress"
+  minio:
+    image: docker.io/bitnami/minio:2022
+    networks:
+      - wordpress_network
+      - portainer_default
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - 'minio_data:/data'
+    labels:
+      - "traefik.enable=true"
+      # Frontend
+      # Take care of the domain
+      - "traefik.docker.network=portainer_default"
+      - "traefik.http.routers.minio.rule=Host(`minio.local`)"
+      - "traefik.http.routers.minio.entrypoints=web"
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      - "traefik.http.routers.minio.service=minio"
+      # minio-admin
+      - "traefik.http.routers.minio-admin.rule=Host(`minio.admin.local`)"
+      - "traefik.http.routers.minio-admin.entrypoints=web"
+      - "traefik.http.services.minio-admin.loadbalancer.server.port=9001"
+      - "traefik.http.routers.minio-admin.service=minio"
